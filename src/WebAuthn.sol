@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import {FCL_ecdsa} from "FreshCryptoLib/FCL_ecdsa.sol";
 import {FCL_Elliptic_ZZ} from "FreshCryptoLib/FCL_elliptic.sol";
+
+import {console2} from "forge-std/console2.sol";
 import {Base64} from "openzeppelin-contracts/contracts/utils/Base64.sol";
 import {LibString} from "solady/utils/LibString.sol";
 
@@ -47,7 +49,7 @@ library WebAuthn {
     /// @dev Secp256r1 curve order / 2 used as guard to prevent signature malleability issue.
     uint256 private constant _P256_N_DIV_2 = FCL_Elliptic_ZZ.n / 2;
 
-    /// @dev The precompiled contract address to use for signature verification in the “secp256r1” elliptic curve.
+    /// @dev The precompiled contract address to use for signature verification in the "secp256r1" elliptic curve.
     ///      See https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md.
     address private constant _VERIFIER = address(0x100);
 
@@ -119,6 +121,8 @@ library WebAuthn {
             return false;
         }
 
+        console2.log("About to check challenge match");
+
         // 12. Verify that the value of C.challenge equals the base64url encoding of options.challenge.
         bytes memory expectedChallenge = bytes(string.concat('"challenge":"', Base64.encodeURL(challenge), '"'));
         string memory actualChallenge =
@@ -157,8 +161,12 @@ library WebAuthn {
         // so an invalid signature will be checked twice: once by the precompile and once by FCL.
         // Ideally this signature failure is simulated offchain and no one actually pay this gas.
         bool valid = ret.length > 0;
-        if (success && valid) return abi.decode(ret, (uint256)) == 1;
+        if (success && valid) {
+            console2.log("USING_PRECOMPILE");
+            return abi.decode(ret, (uint256)) == 1;
+        }
 
+        console2.log("USING_FCL");
         return FCL_ecdsa.ecdsa_verify(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
     }
 }

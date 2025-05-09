@@ -4,6 +4,7 @@ out = "out"
 libs = ["lib"]
 optimizer_runs = 999999
 fs_permissions = [{ access = "read", path = "test/fixtures" }]
+evm_version = "shanghai"
 
 [fmt]
 sort_imports = true
