@@ -47,7 +47,7 @@ library WebAuthn {
     /// @dev Secp256r1 curve order / 2 used as guard to prevent signature malleability issue.
     uint256 private constant _P256_N_DIV_2 = FCL_Elliptic_ZZ.n / 2;
 
-    /// @dev The precompiled contract address to use for signature verification in the “secp256r1” elliptic curve.
+    /// @dev The precompiled contract address to use for signature verification in the "secp256r1" elliptic curve.
     ///      See https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md.
     address private constant _VERIFIER = address(0x100);
 
@@ -95,11 +95,11 @@ library WebAuthn {
     ///         - Does NOT verify the attestation object: this assumes that response.attestationObject is NOT present in the response,
     ///           i.e. the RP does not intend to verify an attestation.
     ///
-    /// @param challenge    The challenge that was provided by the relying party.
-    /// @param requireUV    A boolean indicating whether user verification is required.
+    /// @param challenge The challenge that was provided by the relying party.
+    /// @param requireUV A boolean indicating whether user verification is required.
     /// @param webAuthnAuth The `WebAuthnAuth` struct.
-    /// @param x            The x coordinate of the public key.
-    /// @param y            The y coordinate of the public key.
+    /// @param x The x coordinate of the public key.
+    /// @param y The y coordinate of the public key.
     ///
     /// @return `true` if the authentication assertion passed validation, else `false`.
     function verify(bytes memory challenge, bool requireUV, WebAuthnAuth memory webAuthnAuth, uint256 x, uint256 y)
@@ -107,16 +107,17 @@ library WebAuthn {
         view
         returns (bool)
     {
+        bool hasFailedChecks = false;
         if (webAuthnAuth.s > _P256_N_DIV_2) {
             // guard against signature malleability
-            return false;
+            hasFailedChecks = true;
         }
 
         // 11. Verify that the value of C.type is the string webauthn.get.
-        //     bytes("type":"webauthn.get").length = 21
+        // bytes("type":"webauthn.get").length = 21
         string memory _type = webAuthnAuth.clientDataJSON.slice(webAuthnAuth.typeIndex, webAuthnAuth.typeIndex + 21);
         if (keccak256(bytes(_type)) != _EXPECTED_TYPE_HASH) {
-            return false;
+            hasFailedChecks = true;
         }
 
         // 12. Verify that the value of C.challenge equals the base64url encoding of options.challenge.
@@ -124,20 +125,20 @@ library WebAuthn {
         string memory actualChallenge =
             webAuthnAuth.clientDataJSON.slice(webAuthnAuth.challengeIndex, webAuthnAuth.challengeIndex + expectedChallenge.length);
         if (keccak256(bytes(actualChallenge)) != keccak256(expectedChallenge)) {
-            return false;
+            hasFailedChecks = true;
         }
 
         // Skip 13., 14., 15.
 
         // 16. Verify that the UP bit of the flags in authData is set.
         if (webAuthnAuth.authenticatorData[32] & _AUTH_DATA_FLAGS_UP != _AUTH_DATA_FLAGS_UP) {
-            return false;
+            hasFailedChecks = true;
         }
 
         // 17. If user verification is required for this assertion, verify that the User Verified bit of the flags in
-        //     authData is set.
+        // authData is set.
         if (requireUV && (webAuthnAuth.authenticatorData[32] & _AUTH_DATA_FLAGS_UV) != _AUTH_DATA_FLAGS_UV) {
-            return false;
+            hasFailedChecks = true;
         }
 
         // skip 18.
@@ -146,19 +147,29 @@ library WebAuthn {
         bytes32 clientDataJSONHash = sha256(bytes(webAuthnAuth.clientDataJSON));
 
         // 20. Using credentialPublicKey, verify that sig is a valid signature over the binary concatenation of authData
-        //     and hash.
+        // and hash.
         bytes32 messageHash = sha256(abi.encodePacked(webAuthnAuth.authenticatorData, clientDataJSONHash));
-        bytes memory args = abi.encode(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
-        // try the RIP-7212 precompile address
-        (bool success, bytes memory ret) = _VERIFIER.staticcall(args);
+        bool sigValid = _verifySigP256(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
+        return !hasFailedChecks && sigValid;
+    }
+
+    /// @dev Verifies a P256 signature using the precompiled contract or FCL.
+    /// @param messageHash The hash of the message to verify.
+    /// @param r The r value of the signature.
+    /// @param s The s value of the signature.
+    /// @param x The x coordinate of the public key.
+    /// @param y The y coordinate of the public key.
+    /// @return True if the signature is valid, false otherwise.
+    function _verifySigP256(bytes32 messageHash, uint256 r, uint256 s, uint256 x, uint256 y) private view returns (bool) {
         // staticcall will not revert if address has no code
         // check return length
         // note that even if precompile exists, ret.length is 0 when verification returns false
         // so an invalid signature will be checked twice: once by the precompile and once by FCL.
-        // Ideally this signature failure is simulated offchain and no one actually pay this gas.
-        bool valid = ret.length > 0;
-        if (success && valid) return abi.decode(ret, (uint256)) == 1;
-
-        return FCL_ecdsa.ecdsa_verify(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
+        // Ideally this signature failure is simulated offchain and no one actually pays this gas.
+        (bool success, bytes memory ret) = _VERIFIER.staticcall(abi.encode(messageHash, r, s, x, y));
+        if (success && ret.length > 0) {
+            return abi.decode(ret, (uint256)) == 1;
+        }
+        return FCL_ecdsa.ecdsa_verify(messageHash, r, s, x, y);
     }
 }

@@ -7,6 +7,9 @@ on:
 
 env:
   FOUNDRY_PROFILE: ci
+  ETHEREUM_RPC: https://ethereum-rpc.publicnode.com
+  BASE_RPC: https://mainnet.base.org
+  ARBITRUM_RPC: https://arb1.arbitrum.io/rpc
 
 jobs:
   check:
