@@ -1,0 +1,5 @@
+# Disable expensive diffs for large/generated fixtures
+
+test/fixtures/fcl_vectors.json -diff
+test/fixtures/*.csv -diff
+

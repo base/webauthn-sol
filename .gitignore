@@ -15,3 +15,21 @@ docs/
 
 # Python files
 __pycache__
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Local Python virtual environments
+.venv/
+test/helpers/.venv/
+
+# OS/editor cruft
+.DS_Store
+.idea/
+.vscode/
+
+# Temp artifacts from earlier collection steps
+test/fixtures/.cases.tmp
+**/.venv/
+venv/
+**/venv/

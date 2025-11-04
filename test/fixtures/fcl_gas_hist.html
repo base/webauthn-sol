@@ -1,0 +1,39 @@
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>FCL verify gas distribution</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>body{font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; margin:20px}</style>
+</head>
+<body>
+  <h3>FCL verify gas distribution</h3>
+  <p><button id="save">Download PNG</button></p>
+  <canvas id="chart" width="1000" height="500"></canvas>
+  <script>
+    const labels = ["223998-224425", "224425-224852", "224852-225279", "225279-225706", "225706-226133", "226133-226560", "226560-226987", "226987-227414", "227414-227841", "227841-228268", "228268-228695", "228695-229122", "229122-229549", "229549-229976", "229976-230403", "230403-230830", "230830-231257", "231257-231684", "231684-232111", "232111-232538", "232538-232965", "232965-233392", "233392-233819", "233819-234246", "234246-234673", "234673-235100", "235100-235527", "235527-235954", "235954-236381", "236381-236808", "236808-237235", "237235-237662", "237662-238089", "238089-238516", "238516-238943", "238943-239370", "239370-239797", "239797-240224", "240224-240651", "240651-241079"];
+    const data = [2, 0, 0, 0, 1, 2, 4, 3, 6, 7, 5, 11, 7, 10, 14, 8, 12, 14, 13, 11, 15, 14, 16, 9, 18, 11, 13, 9, 14, 7, 2, 4, 4, 2, 5, 6, 2, 0, 1, 2];
+    const ctx = document.getElementById('chart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Count', data, backgroundColor: 'rgba(54, 162, 235, 0.5)' }] },
+      options: {
+        responsive: false,
+        scales: {
+          x: { title: { display: true, text: 'Gas range' }, ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 20 } },
+          y: { title: { display: true, text: 'Count' }, beginAtZero: true }
+        }
+      }
+    });
+    document.getElementById('save').addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = chart.toBase64Image('image/png', 1.0);
+      a.download = 'fcl_gas_hist.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  </script>
+</body>
+</html>
