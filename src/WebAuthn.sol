@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {FCL_ecdsa} from "FreshCryptoLib/FCL_ecdsa.sol";
-import {FCL_Elliptic_ZZ} from "FreshCryptoLib/FCL_elliptic.sol";
+import {SCL_RIP7212} from "crypto-lib/src/lib/libSCL_RIP7212.sol";
+import {n} from "crypto-lib/src/fields/SCL_secp256r1.sol";
 import {Base64} from "openzeppelin-contracts/contracts/utils/Base64.sol";
 import {LibString} from "solady/utils/LibString.sol";
 
@@ -12,7 +12,7 @@ import {LibString} from "solady/utils/LibString.sol";
 ///         of Daimo.
 ///
 /// @dev Attempts to use the RIP-7212 precompile for signature verification.
-///      If precompile verification fails, it falls back to FreshCryptoLib.
+///      If precompile verification fails, it falls back to SmoothCryptoLib.
 ///
 /// @author Coinbase (https://github.com/base-org/webauthn-sol)
 /// @author Daimo (https://github.com/daimo-eth/p256-verifier/blob/master/src/WebAuthn.sol)
@@ -45,7 +45,7 @@ library WebAuthn {
     bytes1 private constant _AUTH_DATA_FLAGS_UV = 0x04;
 
     /// @dev Secp256r1 curve order / 2 used as guard to prevent signature malleability issue.
-    uint256 private constant _P256_N_DIV_2 = FCL_Elliptic_ZZ.n / 2;
+    uint256 private constant _P256_N_DIV_2 = n / 2;
 
     /// @dev The precompiled contract address to use for signature verification in the “secp256r1” elliptic curve.
     ///      See https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md.
@@ -148,17 +148,32 @@ library WebAuthn {
         // 20. Using credentialPublicKey, verify that sig is a valid signature over the binary concatenation of authData
         //     and hash.
         bytes32 messageHash = sha256(abi.encodePacked(webAuthnAuth.authenticatorData, clientDataJSONHash));
-        bytes memory args = abi.encode(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
-        // try the RIP-7212 precompile address
-        (bool success, bytes memory ret) = _VERIFIER.staticcall(args);
-        // staticcall will not revert if address has no code
-        // check return length
-        // note that even if precompile exists, ret.length is 0 when verification returns false
-        // so an invalid signature will be checked twice: once by the precompile and once by FCL.
-        // Ideally this signature failure is simulated offchain and no one actually pay this gas.
-        bool valid = ret.length > 0;
-        if (success && valid) return abi.decode(ret, (uint256)) == 1;
+        
+        // Try the RIP-7212 precompile first for better gas efficiency
+        return _verifySignature(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
+    }
 
-        return FCL_ecdsa.ecdsa_verify(messageHash, webAuthnAuth.r, webAuthnAuth.s, x, y);
+    /// @dev Internal function to verify signature, reducing stack depth in main verify function
+    /// @param messageHash The hash of the message to verify
+    /// @param r The r value of the signature
+    /// @param s The s value of the signature  
+    /// @param x The x coordinate of the public key
+    /// @param y The y coordinate of the public key
+    /// @return True if signature is valid, false otherwise
+    function _verifySignature(bytes32 messageHash, uint256 r, uint256 s, uint256 x, uint256 y)
+        private
+        view
+        returns (bool)
+    {
+        // Try the RIP-7212 precompile address
+        (bool success, bytes memory ret) = _VERIFIER.staticcall(abi.encode(messageHash, r, s, x, y));
+        
+        // Check if precompile is available and returned valid result
+        if (success && ret.length > 0) {
+            return abi.decode(ret, (uint256)) == 1;
+        }
+        
+        // Fallback to SCL pure Solidity implementation
+        return SCL_RIP7212.verify(messageHash, r, s, x, y);
     }
 }
