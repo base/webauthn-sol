@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {FCL_ecdsa} from "FreshCryptoLib/FCL_ecdsa.sol";
+import {n} from "crypto-lib/src/fields/SCL_secp256r1.sol";
 import {Test, Vm, console, stdJson} from "forge-std/Test.sol";
 
 import {WebAuthn} from "../src/WebAuthn.sol";
@@ -34,7 +34,7 @@ contract WebAuthnFuzzTest is Test {
 
             // Only interested in s > P256_N_DIV_2 cases.
             if (webAuthnAuth.s <= Utils.P256_N_DIV_2) {
-                webAuthnAuth.s = FCL_ecdsa.n - webAuthnAuth.s;
+                webAuthnAuth.s = n - webAuthnAuth.s;
             }
 
             bool res = WebAuthn.verify({challenge: challenge, requireUV: uv, webAuthnAuth: webAuthnAuth, x: x, y: y});
